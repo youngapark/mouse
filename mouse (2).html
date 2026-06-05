@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>마우스 탐험대 - 신나는 마우스 교실</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Gaegu', cursive;
+            background-color: #f0f9ff;
+            user-select: none;
+            overflow-x: hidden;
+        }
+        .game-card {
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+        .game-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .card-inner {
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+        .flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+        .card-front, .card-back {
+            backface-visibility: hidden;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .card-back {
+            transform: rotateY(180deg);
+        }
+        /* 드래그 게임 타겟 스타일 */
+        .drag-slot {
+            border: 4px dashed #cbd5e1;
+            transition: all 0.3s;
+            background-color: #f8fafc;
+        }
+        .drag-slot.active {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+            transform: scale(1.05);
+        }
+        .drag-slot.filled {
+            border-style: solid;
+            border-color: #10b981;
+            background-color: #ecfdf5;
+        }
+        .animate-pop {
+            animation: pop 0.3s ease-out;
+        }
+        @keyframes pop {
+            0% { transform: scale(0.8); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        /* 깃발 애니메이션 */
+        .flag-container {
+            position: relative;
+            height: 120px;
+            width: 80px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+        }
+        .flag-pole {
+            width: 8px;
+            height: 100%;
+            background-color: #64748b;
+            border-radius: 4px;
+        }
+        .flag-cloth {
+            position: absolute;
+            bottom: 10px;
+            left: 8px;
+            font-size: 3rem;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform-origin: bottom left;
+        }
+        .flag-up .flag-cloth {
+            transform: translateY(-60px) rotate(-15deg);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4">
+
+    <!-- Header -->
+    <header class="text-center mb-8">
+        <h1 class="text-5xl font-bold text-blue-600 mb-2">🖱️ 마우스 탐험대</h1>
+        <p class="text-xl text-gray-600">안녕! 나랑 같이 마우스 사용법을 배워볼까?</p>
+    </header>
+
+    <!-- Game Selection Menu -->
+    <div id="menu" class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl">
+        <div onclick="startGame(1)" class="game-card bg-white p-6 rounded-3xl shadow-lg border-4 border-yellow-300 flex flex-col items-center">
+            <span class="text-6xl mb-4">👆</span>
+            <h2 class="text-2xl font-bold mb-2">1단계: 클릭</h2>
+            <p class="text-center text-gray-500 text-lg">카드를 '한 번' 눌러서<br>같은 그림을 찾아요!</p>
+        </div>
+        <div onclick="startGame(2)" class="game-card bg-white p-6 rounded-3xl shadow-lg border-4 border-green-300 flex flex-col items-center">
+            <span class="text-6xl mb-4">✌️</span>
+            <h2 class="text-2xl font-bold mb-2">2단계: 더블클릭</h2>
+            <p class="text-center text-gray-500 text-lg">카드를 '두 번 톡톡!' 눌러서<br>친구들을 도와줘요!</p>
+        </div>
+        <div onclick="startGame(3)" class="game-card bg-white p-6 rounded-3xl shadow-lg border-4 border-blue-300 flex flex-col items-center">
+            <span class="text-6xl mb-4">🤝</span>
+            <h2 class="text-2xl font-bold mb-2">3단계: 드래그</h2>
+            <p class="text-center text-gray-500 text-lg">동물 친구들을<br>알맞은 자리에 옮겨주세요!</p>
+        </div>
+        <div onclick="startGame(4)" class="game-card bg-white p-6 rounded-3xl shadow-lg border-4 border-red-300 flex flex-col items-center">
+            <span class="text-6xl mb-4">⚖️</span>
+            <h2 class="text-2xl font-bold mb-2">4단계: 좌우 클릭</h2>
+            <p class="text-center text-gray-500 text-lg">20초 안에 지시에 따라<br>청기 백기 게임을 해요!</p>
+        </div>
+    </div>
+
+    <!-- Game Container -->
+    <div id="game-container" class="hidden w-full max-w-4xl bg-white rounded-3xl shadow-2xl p-8 relative min-h-[550px]">
+        <button onclick="showMenu()" class="absolute top-4 left-4 bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-full font-bold">🏠 처음으로</button>
+        <div id="game-content" class="mt-8 flex flex-col items-center">
+            <!-- Game dynamic content goes here -->
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="success-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div class="bg-white p-10 rounded-3xl text-center shadow-2xl animate-pop">
+            <div class="text-7xl mb-4" id="modal-icon">🎉</div>
+            <h2 class="text-4xl font-bold text-blue-600 mb-4" id="modal-title">참 잘했어요!</h2>
+            <p class="text-xl mb-6" id="success-msg">대단해요! 마우스 달인이 되었군요!</p>
+            <button onclick="showMenu()" class="bg-blue-500 hover:bg-blue-600 text-white text-xl font-bold py-3 px-8 rounded-full shadow-lg">다른 게임 하기</button>
+        </div>
+    </div>
+
+    <script>
+        const menu = document.getElementById('menu');
+        const container = document.getElementById('game-container');
+        const content = document.getElementById('game-content');
+        const successModal = document.getElementById('success-modal');
+
+        const emojis = ['🐶', '🐱', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨'];
+        let gameState = {
+            flipped: [],
+            matches: 0,
+            timer: null,
+            timeLeft: 20,
+            score: 0
+        };
+
+        function showMenu() {
+            if (gameState.timer) clearInterval(gameState.timer);
+            menu.classList.remove('hidden');
+            container.classList.add('hidden');
+            successModal.classList.add('hidden');
+            content.innerHTML = '';
+        }
+
+        function startGame(level) {
+            if (gameState.timer) clearInterval(gameState.timer);
+            menu.classList.add('hidden');
+            container.classList.remove('hidden');
+            content.innerHTML = '';
+            
+            if (level === 1) initClickGame(false);
+            else if (level === 2) initClickGame(true);
+            else if (level === 3) initDragGame();
+            else if (level === 4) initFlagGame();
+        }
+
+        function showSuccess(msg, title = "참 잘했어요!", icon = "🎉") {
+            if (gameState.timer) clearInterval(gameState.timer);
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-icon').innerText = icon;
+            document.getElementById('success-msg').innerText = msg;
+            successModal.classList.remove('hidden');
+        }
+
+        // --- Game 1 & 2: Click / Double Click Matching ---
+        function initClickGame(isDouble) {
+            const gameEmojis = [...emojis.slice(0, 4), ...emojis.slice(0, 4)];
+            gameEmojis.sort(() => Math.random() - 0.5);
+            
+            content.innerHTML = `
+                <div class="text-center mb-6">
+                    <h2 class="text-3xl font-bold mb-2">${isDouble ? '더블클릭(두 번)' : '클릭(한 번)'} 연습</h2>
+                    <p class="text-lg text-gray-600">똑같은 그림을 찾아보세요!</p>
+                </div>
+                <div class="grid grid-cols-4 gap-4" id="card-grid"></div>
+            `;
+
+            const grid = document.getElementById('card-grid');
+            gameState.flipped = [];
+            gameState.matches = 0;
+
+            gameEmojis.forEach((emoji) => {
+                const card = document.createElement('div');
+                card.className = 'relative w-20 h-28 cursor-pointer card-container';
+                card.innerHTML = `
+                    <div class="card-inner w-full h-full relative pointer-events-none">
+                        <div class="card-front bg-blue-400 rounded-xl flex items-center justify-center text-4xl text-white shadow-md border-4 border-white">?</div>
+                        <div class="card-back bg-white rounded-xl flex items-center justify-center text-4xl shadow-md border-4 border-blue-400">${emoji}</div>
+                    </div>
+                `;
+
+                if (isDouble) {
+                    card.ondblclick = () => handleFlip(card, emoji);
+                } else {
+                    card.onclick = () => handleFlip(card, emoji);
+                }
+                grid.appendChild(card);
+            });
+        }
+
+        function handleFlip(card, emoji) {
+            if (card.classList.contains('flipped') || gameState.flipped.length >= 2) return;
+
+            card.classList.add('flipped');
+            gameState.flipped.push({ card, emoji });
+
+            if (gameState.flipped.length === 2) {
+                setTimeout(() => {
+                    const [c1, c2] = gameState.flipped;
+                    if (c1.emoji === c2.emoji) {
+                        gameState.matches++;
+                        if (gameState.matches === 4) showSuccess("모든 짝을 찾았어요! 마우스 버튼 누르는 실력이 최고예요!");
+                    } else {
+                        c1.card.classList.remove('flipped');
+                        c2.card.classList.remove('flipped');
+                    }
+                    gameState.flipped = [];
+                }, 800);
+            }
+        }
+
+        // --- Game 3: Drag to Specific Pair Card ---
+        function initDragGame() {
+            const levelEmojis = emojis.slice(0, 4);
+            const shuffledTargets = [...levelEmojis].sort(() => Math.random() - 0.5);
+            
+            content.innerHTML = `
+                <div class="text-center mb-6">
+                    <h2 class="text-3xl font-bold mb-2">드래그(짝 맞추기) 연습</h2>
+                    <p class="text-lg text-gray-600">동물 친구들을 그림자가 있는 자기 자리로 옮겨주세요!</p>
+                </div>
+                <div class="w-full flex flex-col items-center gap-10">
+                    <div id="drag-items" class="flex gap-6 justify-center"></div>
+                    <div id="drag-targets" class="flex gap-6 justify-center"></div>
+                </div>
+            `;
+
+            const itemsContainer = document.getElementById('drag-items');
+            const targetsContainer = document.getElementById('drag-targets');
+            let matches = 0;
+
+            levelEmojis.forEach((emoji) => {
+                const item = document.createElement('div');
+                item.className = 'text-5xl cursor-move p-4 bg-white rounded-2xl shadow-md border-2 border-gray-100 hover:scale-110 transition-transform active:scale-95';
+                item.draggable = true;
+                item.innerText = emoji;
+                item.id = `emoji-${emoji}`;
+                
+                item.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', emoji);
+                    item.classList.add('opacity-30');
+                });
+                item.addEventListener('dragend', () => item.classList.remove('opacity-30'));
+                itemsContainer.appendChild(item);
+            });
+
+            shuffledTargets.forEach((emoji) => {
+                const slot = document.createElement('div');
+                slot.className = 'drag-slot w-24 h-32 rounded-2xl flex items-center justify-center text-4xl grayscale opacity-30';
+                slot.innerText = emoji;
+                slot.dataset.emoji = emoji;
+
+                slot.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    if (!slot.classList.contains('filled')) slot.classList.add('active');
+                });
+                slot.addEventListener('dragleave', () => slot.classList.remove('active'));
+                slot.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    slot.classList.remove('active');
+                    const draggedEmoji = e.dataTransfer.getData('text/plain');
+
+                    if (draggedEmoji === emoji) {
+                        slot.classList.add('filled');
+                        slot.classList.remove('grayscale', 'opacity-30');
+                        slot.innerHTML = `<span class="animate-pop">${emoji}</span>`;
+                        document.getElementById(`emoji-${draggedEmoji}`).style.visibility = 'hidden';
+                        matches++;
+                        if (matches === 4) showSuccess("우와! 자기 자리를 모두 찾아주었군요! 드래그 대장이에요!");
+                    }
+                });
+                targetsContainer.appendChild(slot);
+            });
+        }
+
+        // --- Game 4: Left/Right Click (Flag Game with 20s Timer) ---
+        function initFlagGame() {
+            gameState.timeLeft = 20;
+            gameState.score = 0;
+
+            content.innerHTML = `
+                <div class="text-center mb-4">
+                    <h2 class="text-3xl font-bold mb-1">좌우 클릭 청기백기</h2>
+                    <div id="game-timer" class="text-2xl font-bold text-red-500 mb-2">남은 시간: 20초</div>
+                </div>
+                <div class="flex justify-around w-full max-w-md mb-6">
+                    <div class="flex flex-col items-center">
+                        <div id="blue-flag-box" class="flag-container">
+                            <div class="flag-pole"></div>
+                            <div class="flag-cloth">🔵</div>
+                        </div>
+                        <p class="mt-2 font-bold text-blue-600">청기 (왼쪽 클릭)</p>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <div id="white-flag-box" class="flag-container">
+                            <div class="flag-pole"></div>
+                            <div class="flag-cloth">⚪</div>
+                        </div>
+                        <p class="mt-2 font-bold text-gray-500">백기 (오른쪽 클릭)</p>
+                    </div>
+                </div>
+                <div id="instruction" class="text-3xl font-bold text-center bg-yellow-100 p-6 rounded-2xl border-4 border-yellow-400 w-full min-h-[100px] flex items-center justify-center">
+                    잠시만 기다리세요...
+                </div>
+                <div class="mt-6 text-2xl font-bold" id="score-text">점수: 0점</div>
+            `;
+
+            const containerArea = document.getElementById('game-container');
+            containerArea.oncontextmenu = (e) => e.preventDefault();
+
+            let currentTarget = '';
+            const instruction = document.getElementById('instruction');
+            const blueFlag = document.getElementById('blue-flag-box');
+            const whiteFlag = document.getElementById('white-flag-box');
+            const timerEl = document.getElementById('game-timer');
+
+            // Timer Logic
+            gameState.timer = setInterval(() => {
+                gameState.timeLeft--;
+                timerEl.innerText = `남은 시간: ${gameState.timeLeft}초`;
+                if (gameState.timeLeft <= 0) {
+                    clearInterval(gameState.timer);
+                    showSuccess(`시간 종료! 당신의 점수는 ${gameState.score}점입니다!`, "수고했어요!", "⏰");
+                }
+            }, 1000);
+
+            function nextTurn() {
+                const isLeft = Math.random() > 0.5;
+                currentTarget = isLeft ? 'left' : 'right';
+                instruction.innerText = isLeft ? "청기 올려! (왼쪽 클릭)" : "백기 올려! (오른쪽 클릭)";
+                instruction.className = isLeft ? 
+                    "text-3xl font-bold text-center bg-blue-100 p-6 rounded-2xl border-4 border-blue-400 w-full animate-pop flex items-center justify-center" : 
+                    "text-3xl font-bold text-center bg-gray-100 p-6 rounded-2xl border-4 border-gray-400 w-full animate-pop flex items-center justify-center";
+            }
+
+            containerArea.onmousedown = (e) => {
+                if (gameState.timeLeft <= 0) return;
+                
+                let clicked = '';
+                if (e.button === 0) {
+                    clicked = 'left';
+                    blueFlag.classList.add('flag-up');
+                    setTimeout(() => blueFlag.classList.remove('flag-up'), 200);
+                } else if (e.button === 2) {
+                    clicked = 'right';
+                    whiteFlag.classList.add('flag-up');
+                    setTimeout(() => whiteFlag.classList.remove('flag-up'), 200);
+                }
+
+                if (clicked === currentTarget) {
+                    gameState.score++;
+                    document.getElementById('score-text').innerText = `점수: ${gameState.score}점`;
+                    nextTurn();
+                }
+            };
+
+            setTimeout(nextTurn, 1000);
+        }
+
+        // Global context menu prevention for the game area
+        window.oncontextmenu = (e) => {
+            if (container.classList.contains('hidden')) return true;
+            e.preventDefault();
+            return false;
+        };
+    </script>
+</body>
+</html>
